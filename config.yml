@@ -1,0 +1,13 @@
+
+#  PluginManager - Config
+#    Note: Be careful while editing the config
+
+# When true, PluginManager may disable itself
+selfDestruct: false
+
+# When true, PluginManager will play sound effects
+playSound: true
+
+# Specifies the amount of seconds between plugin queries(makes plugin status live)
+#   Maximum is 1. More seconds means less load on server.
+updateInterval: 1

@@ -1,0 +1,19 @@
+main: me.xeyler.ManagerMain
+version: 0.1
+description: A tool for managing plugins.
+author: xX_Xeyler_Xx
+name: PluginManager
+commands:
+   plugins:
+      description: Change the status of loaded plugins.
+      usage: /<command>
+      permission: Manager.allowed
+permissions:
+   Manager.enable:
+      default: op
+   Manager.disable:
+      default: op
+   Manager.eject:
+      default: op
+   Manager.view:
+      default: op
