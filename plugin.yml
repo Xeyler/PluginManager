@@ -1,5 +1,5 @@
 main: me.xeyler.ManagerMain
-version: 0.1
+version: 2.0
 description: A tool for managing plugins.
 author: xX_Xeyler_Xx
 name: PluginManager
