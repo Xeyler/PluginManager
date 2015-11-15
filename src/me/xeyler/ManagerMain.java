@@ -30,9 +30,9 @@ public class ManagerMain extends JavaPlugin implements Listener {
 	
 	List<Inventory> inventories = new ArrayList<Inventory>();
 	HashMap<ItemStack, Plugin> itemsMap = new HashMap<ItemStack, Plugin>();
-	
+
 	boolean sound;
-	int interval;
+	boolean destruct;
 	
 	@Override
 	public void onEnable() {
@@ -51,6 +51,26 @@ public class ManagerMain extends JavaPlugin implements Listener {
 		
 		}
 		
+		// get boolean "playSound"
+		try {
+			sound = getConfig().getBoolean("playSound");
+		} catch(Exception error) {
+			getLogger().warning("The 'playSound' parameter in PluginManager's config is not a boolean!");
+			getLogger().warning("Reverting to default value of 'false'");
+			getConfig().set("playSound", false);
+			sound = false;
+		}
+		
+		//get boolean "selfDestruct"
+		try {
+			destruct = getConfig().getBoolean("selfDestruct");
+		} catch(Exception error) {
+			getLogger().warning("The 'selfDestruct' parameter in PluginManager's config is not a boolean!");
+			getLogger().warning("Reverting to default value of 'false'");
+			getConfig().set("selfDestruct", false);
+			destruct = false;
+		}
+		
 		// schedule this for later so it happens after all plugins are loaded
 		Bukkit.getScheduler().scheduleSyncDelayedTask(this, new Runnable() {
 			
@@ -59,26 +79,42 @@ public class ManagerMain extends JavaPlugin implements Listener {
 				public void run() {
 			
 					// create enough inventories to fit all the plugins
-					for(int i = 1; i <= (int) Math.ceil(Bukkit.getPluginManager().getPlugins().length/45); i++) {
-						inventories.add(Bukkit.createInventory(null, 54, "Plugins - " + i));
+					for(int i = 1; i <= (int) Math.ceil(Bukkit.getPluginManager().getPlugins().length/45.0); i++) {
+						Inventory inv = Bukkit.createInventory(null, 54, "Plugins - " + i);
+						// add "next" arrow
+						if((int) Math.ceil(Bukkit.getPluginManager().getPlugins().length/45.0) > i) {
+							ItemStack next = new ItemStack(Material.ARROW, i + 1);
+							ItemMeta meta = next.getItemMeta();
+							meta.setDisplayName(ChatColor.GRAY + ChatColor.BOLD.toString() + "Next" + ChatColor.GRAY + " inventory");
+							next.setItemMeta(meta);
+							inv.setItem(53, next);
+						}
+						// add "previous" arrow
+						if(i > 1) {
+							ItemStack last = new ItemStack(Material.ARROW, i - 1);
+							ItemMeta meta = last.getItemMeta();
+							meta.setDisplayName(ChatColor.GRAY + ChatColor.BOLD.toString() + "Previous" + ChatColor.GRAY + " inventory");
+							last.setItemMeta(meta);
+							inv.setItem(45, last);
+						}
+						inventories.add(inv);
 					}
 				
 					// add the blocks to the inventories
 					int i = 1;
 					for(Plugin plugin : Bukkit.getPluginManager().getPlugins()) {
 						
-						ItemStack item;
+						ItemStack item = new ItemStack(Material.AIR);
 						if(plugin.isEnabled()) {
-							item = new ItemStack(Material.EMERALD_BLOCK);
+							setEnabled(item, plugin);
 						} else {
-							item = new ItemStack(Material.REDSTONE_BLOCK);
+							setDisabled(item, plugin);
 						}
 						ItemMeta meta = item.getItemMeta();
-						
 						meta.setLore(lore(plugin));
 						item.setItemMeta(meta);
 						
-						inventories.get((int) Math.ceil(i/45)).addItem(item);
+						inventories.get((int) Math.ceil(i/45.0) - 1).addItem(item);
 						itemsMap.put(item, plugin);
 						
 						i++;
@@ -119,6 +155,7 @@ public class ManagerMain extends JavaPlugin implements Listener {
 			if(itemsMap.get(item) == event.getPlugin()) {
 				
 				setEnabled(item, event.getPlugin());
+				return;
 				
 			}
 			
@@ -135,6 +172,7 @@ public class ManagerMain extends JavaPlugin implements Listener {
 			if(itemsMap.get(item) == event.getPlugin()) {
 				
 				setDisabled(item, event.getPlugin());
+				return;
 				
 			}
 			
@@ -144,19 +182,23 @@ public class ManagerMain extends JavaPlugin implements Listener {
 
 	private void setEnabled(ItemStack item, Plugin plugin) {
 		
+		itemsMap.remove(item);
 		item.setType(Material.EMERALD_BLOCK);
 		ItemMeta meta = item.getItemMeta();
-		meta.setDisplayName(ChatColor.GREEN + ChatColor.BOLD.toString() + plugin.getName() + " v" + plugin.getDescription().getVersion() + " - Disabled");
+		meta.setDisplayName(ChatColor.GREEN + ChatColor.BOLD.toString() + plugin.getName() + " v" + plugin.getDescription().getVersion() + " - Enabled");
 		item.setItemMeta(meta);
+		itemsMap.put(item, plugin);
 		
 	}
 	
 	private void setDisabled(ItemStack item, Plugin plugin) {
 		
+		itemsMap.remove(item);
 		item.setType(Material.REDSTONE_BLOCK);
 		ItemMeta meta = item.getItemMeta();
 		meta.setDisplayName(ChatColor.RED + ChatColor.BOLD.toString() + plugin.getName() + " v" + plugin.getDescription().getVersion() + " - Disabled");
 		item.setItemMeta(meta);
+		itemsMap.put(item, plugin);
 		
 	}
 
@@ -165,18 +207,36 @@ public class ManagerMain extends JavaPlugin implements Listener {
 	public void onClick(InventoryClickEvent event) {
 		
 		// if the clicked inventory was a PluginManager inventory
-		if(inventories.contains(event.getClickedInventory())) {
+		if(inventories.contains(event.getClickedInventory()) && event.getWhoClicked() instanceof Player) {
 			
 			event.setCancelled(true);
 			
 			// if it was clicked on the top part(not the player's inventory)
 			if(event.getRawSlot() < event.getView().getTopInventory().getSize()) {
 
-				Plugin plugin = itemsMap.get(event.getCurrentItem());
-			
-				if(event.getCurrentItem().getType().equals(Material.EMERALD_BLOCK)) { 
+				if(event.getCurrentItem().getType().equals(Material.ARROW)) {
+					
+					int current = inventories.indexOf(event.getClickedInventory());
+					
+					if(event.getRawSlot() == 45) {
+						
+						((Player) event.getWhoClicked()).openInventory(inventories.get(current - 1));
+						
+					}
+					
+					if(event.getRawSlot() == 53) {
+						
+						((Player) event.getWhoClicked()).openInventory(inventories.get(current + 1));
+						
+					}
+					
+				}
 				
-					if(!plugin.equals(this) || getConfig().getBoolean("selfDestruct", false)) {
+				if(event.getCurrentItem().getType().equals(Material.EMERALD_BLOCK)) {
+
+					Plugin plugin = itemsMap.get(event.getCurrentItem());
+					
+					if(!plugin.equals(this) || destruct) {
 
 						if(event.getClick().equals(ClickType.RIGHT) || event.getClick().equals(ClickType.SHIFT_RIGHT)) {
 
@@ -192,14 +252,15 @@ public class ManagerMain extends JavaPlugin implements Listener {
 								((Player) event.getWhoClicked()).sendMessage(ChatColor.BLUE + "Ejecting " + ChatColor.BLUE + ChatColor.BOLD.toString() + plugin.getName() + "...");
 								ManagerFunctions.remove(plugin);
 							} catch(Exception error) {
-								getLogger().warning("There was an error ejecting " + plugin.getName() + ": " + error.getLocalizedMessage());
+								getLogger().warning("There was an error ejecting  " + plugin.getName() + ": " + error.getLocalizedMessage());
+								((Player) event.getWhoClicked()).sendMessage(ChatColor.RED + "There was an error ejecting " + plugin.getName() + "!");
+								if(sound)((Player) event.getWhoClicked()).playSound(event.getWhoClicked().getLocation(), Sound.BLAZE_HIT, 1, 1);
 								return;
 							}
 						
 							getLogger().info(" --- " + plugin.getName() + " was ejected by " + event.getWhoClicked().getName() + " --- ");
 							((Player) event.getWhoClicked()).sendMessage(ChatColor.RED + "You ejected " + ChatColor.RED + ChatColor.BOLD.toString() + plugin.getName() + ".");
 							event.getClickedInventory().remove(event.getCurrentItem());
-							itemsMap.remove(event.getCurrentItem());
 							if(sound)((Player) event.getWhoClicked()).playSound(event.getWhoClicked().getLocation(), Sound.CLICK, 1, 1);
 							
 							}
@@ -211,13 +272,17 @@ public class ManagerMain extends JavaPlugin implements Listener {
 							try{
 								Bukkit.getPluginManager().disablePlugin(plugin);
 							} catch(Exception error) {
-								getLogger().warning("There was an error disabling " + plugin.getName() + ": " + error.getLocalizedMessage());
+								getLogger().warning("There was an error disabling  " + plugin.getName() + ": " + error.getLocalizedMessage());
+								((Player) event.getWhoClicked()).sendMessage(ChatColor.RED + "There was an error disabling " + plugin.getName() + "!");
+								if(sound)((Player) event.getWhoClicked()).playSound(event.getWhoClicked().getLocation(), Sound.BLAZE_HIT, 1, 1);
 								return;
 							}
 						
 							getLogger().info(" --- " + plugin.getName() + " was disabled by " + event.getWhoClicked().getName() + " --- ");
 							((Player) event.getWhoClicked()).sendMessage(ChatColor.RED + "You disabled " + ChatColor.RED + ChatColor.BOLD.toString() + plugin.getName() + ".");
+							
 							setDisabled(event.getCurrentItem(), plugin);
+							itemsMap.put(event.getCurrentItem(), plugin);
 							if(sound)((Player) event.getWhoClicked()).playSound(event.getWhoClicked().getLocation(), Sound.CLICK, 1, 1);
 							
 							}
@@ -233,6 +298,8 @@ public class ManagerMain extends JavaPlugin implements Listener {
 					
 				} else if(event.getCurrentItem().getType().equals(Material.REDSTONE_BLOCK)) {
 
+					Plugin plugin = itemsMap.get(event.getCurrentItem());
+					
 					if(event.getClick().equals(ClickType.RIGHT) || event.getClick().equals(ClickType.SHIFT_RIGHT)) {
 
 						if(event.getWhoClicked().hasPermission("Manager.eject")) {
@@ -246,7 +313,8 @@ public class ManagerMain extends JavaPlugin implements Listener {
 							getLogger().info("Unloading " + plugin.getName());
 							ManagerFunctions.remove(plugin);
 						} catch(Exception error) {
-							getLogger().warning("There was an error ejecting " + plugin.getName() + ": " + error.getLocalizedMessage());
+							getLogger().warning("There was an error ejecting  " + plugin.getName() + ": " + error.getLocalizedMessage());
+							((Player) event.getWhoClicked()).sendMessage(ChatColor.RED + "There was an error ejecting " + plugin.getName() + "!");
 							if(sound)((Player) event.getWhoClicked()).playSound(event.getWhoClicked().getLocation(), Sound.BLAZE_HIT, 1, 1);
 							return;
 						}
@@ -266,8 +334,9 @@ public class ManagerMain extends JavaPlugin implements Listener {
 						try{
 							Bukkit.getPluginManager().enablePlugin(plugin);
 						} catch(Exception error) {
-							getLogger().warning("There was an error enabling " + plugin.getName() + ": " + error.getLocalizedMessage());
-							((Player) event.getWhoClicked()).sendMessage(ChatColor.RED + "There was an error enabling " + ChatColor.RED + ChatColor.BOLD + plugin.getName() + ChatColor.RED + "!");
+							getLogger().warning("There was an error enabling  " + plugin.getName() + ": " + error.getLocalizedMessage());
+							((Player) event.getWhoClicked()).sendMessage(ChatColor.RED + "There was an error enabling " + plugin.getName() + "!");
+							if(sound)((Player) event.getWhoClicked()).playSound(event.getWhoClicked().getLocation(), Sound.BLAZE_HIT, 1, 1);
 							return;
 						}
 					
